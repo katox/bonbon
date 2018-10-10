@@ -6,6 +6,8 @@
             [clojure.pprint :refer [pprint]])
   (:gen-class))
 
+(def num-pralines (* 5 11))
+
 (def praline-kinds #{:manon :eve :desiree :mystere :lingot})
 (def colors #{:yellow :red :green :brown})
 (def special-characters #{:c1 :c2 :c3 :c4 :c5 :c6 :c7 :c8})
@@ -23,9 +25,9 @@
 (s/def ::character (s/keys :req [::special]))
 
 (s/def ::card (s/or :bonbon ::bonbon ::character ::character))
-(s/def ::deck (s/coll-of ::card :kind set? :count (+ 55 8) :distinct true
+(s/def ::deck (s/coll-of ::card :kind set? :count (+ num-pralines 8) :distinct true
                          :gen #(gen/set (s/gen ::card)    ;use custom generator to generate the complete deck
-                                        {:num-elements (+ 55 8) :max-tries 10000})))
+                                        {:num-elements (+ num-pralines 8) :max-tries 10000})))
 
 (def complete-deck (gen/generate (s/gen ::deck)))
 (s/def ::hand (s/coll-of complete-deck :kind set? :count 7))
@@ -93,6 +95,18 @@
       0                                                     ;no other bonboniere found
       (apply max rest-counts))))                            ;pick the combo with max number of bonbonieres
 
+(defn arbitrary-flavour-bonbonieres
+  "Return the maximum number of bonbonieres with arbitrary flavours in a set of bonbons"
+  [bonbons]
+  (let [bonbonieres (->> (combo/combinations bonbons 3))    ;try all 3-tuples of bonbons
+        rest-counts (for [bonboniere bonbonieres]           ;for every bonboniere examine rest of bonbons in hand
+                      (inc
+                        (arbitrary-flavour-bonbonieres
+                          (difference (set bonbons) (set bonboniere)))))]
+    (if (empty? bonbonieres)
+      0                                                     ;no other bonboniere found
+      (apply max rest-counts))))                            ;pick the combo with max number of bonbonieres
+
 (defn same-kind-bonbonieres
   "Return the number of bonbonieres of the same kind in a set of cards (best of combinations)"
   [flavour-fn cards]
@@ -114,6 +128,11 @@
   [cards]
   (same-kind-bonbonieres unique-flavour-bonbonieres cards))
 
+(defn same-kind-arbitrary-flavour-bonbonieres
+  "Return the number of bonbonieres of the same kind and arbitrary flavours in a set of cards (best of combinations)"
+  [cards]
+  (same-kind-bonbonieres arbitrary-flavour-bonbonieres cards))
+
 (defn unique-kind-same-flavour-bonbonieres
   "Return the number of bonbonieres of the unique kinds and the same flavour in a set of cards (best of combinations)"
   [cards]
@@ -124,6 +143,36 @@
         rest-counts (for [bonboniere bonbonieres]           ;for every bonboniere examine rest of cards in hand
                       (inc
                         (unique-kind-same-flavour-bonbonieres
+                          (difference (set bonbons) (set bonboniere)))))]
+    (if (empty? bonbonieres)
+      0                                                     ;no other bonboniere found
+      (apply max rest-counts))))
+
+(defn unique-kind-unique-flavour-bonbonieres
+  "Return the number of bonbonieres of the unique kind and the unique flavour in a set of cards (best of combinations)"
+  [cards]
+  (let [bonbons (remove ::special cards)                    ;disregard all special cards
+        bonbonieres (->> (combo/combinations bonbons 3)     ;try all 3-tuples of cards
+                         (filter (comp unique-kinds? extract-kind)) ;keep those with different praline kinds
+                         (filter (comp no-common-color? extract-flavours))) ;keep those with one unique color
+        ;_ (pprint bonbonieres)
+        rest-counts (for [bonboniere bonbonieres]           ;for every bonboniere examine rest of cards in hand
+                      (inc
+                        (unique-kind-unique-flavour-bonbonieres
+                          (difference (set bonbons) (set bonboniere)))))]
+    (if (empty? bonbonieres)
+      0                                                     ;no other bonboniere found
+      (apply max rest-counts))))
+
+(defn unique-kind-arbitrary-flavour-bonbonieres
+  "Return the number of bonbonieres of the unique kinds and arbitrary flavours in a set of cards (best of combinations)"
+  [cards]
+  (let [bonbons (remove ::special cards)                    ;disregard all special cards
+        bonbonieres (->> (combo/combinations bonbons 3)     ;try all 3-tuples of cards
+                         (filter (comp unique-kinds? extract-kind))) ;keep those with different praline kinds
+        rest-counts (for [bonboniere bonbonieres]           ;for every bonboniere examine rest of cards in hand
+                      (inc
+                        (unique-kind-arbitrary-flavour-bonbonieres
                           (difference (set bonbons) (set bonboniere)))))]
     (if (empty? bonbonieres)
       0                                                     ;no other bonboniere found
@@ -151,9 +200,18 @@
          same-kind-unique-flavours-count (->> (map same-kind-unique-flavours-bonbonieres hands)
                                               frequencies
                                               (percents "same-kind-unique-flavours-" hand-count))
+         same-kind-arbitrary-flavour-count (->> (map same-kind-arbitrary-flavour-bonbonieres hands)
+                                                 frequencies
+                                                 (percents "same-kind-arbitrary-flavour-" hand-count))
          unique-kind-same-flavour-count (->> (map unique-kind-same-flavour-bonbonieres hands)
                                              frequencies
-                                             (percents "unique-kind-same-flavour-" hand-count))]
+                                             (percents "unique-kind-same-flavour-" hand-count))
+         unique-kind-unique-flavour-count (->> (map unique-kind-unique-flavour-bonbonieres hands)
+                                               frequencies
+                                               (percents "unique-kind-unique-flavour-" hand-count))
+         unique-kind-arbitrary-flavour-count (->> (map unique-kind-arbitrary-flavour-bonbonieres hands)
+                                                   frequencies
+                                                   (percents "unique-kind-arbitrary-flavour-" hand-count))]
      (when verbose
        (doseq [hand hands]
          (println "========================================================")
@@ -161,7 +219,10 @@
      (merge
        same-kind-same-flavour-count
        same-kind-unique-flavours-count
-       unique-kind-same-flavour-count))))
+       same-kind-arbitrary-flavour-count
+       unique-kind-same-flavour-count
+       unique-kind-unique-flavour-count
+       unique-kind-arbitrary-flavour-count))))
 
 (defn- parse-hand-count [args]
   (when-let [cnt (first args)]
