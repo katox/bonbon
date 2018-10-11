@@ -6,8 +6,6 @@
             [clojure.pprint :refer [pprint]])
   (:gen-class))
 
-(def num-pralines (* 5 11))
-
 (def praline-kinds #{:manon :eve :desiree :mystere :lingot})
 (def colors #{:yellow :red :green :brown})
 (def special-characters #{:c1 :c2 :c3 :c4 :c5 :c6 :c7 :c8})
@@ -25,12 +23,31 @@
 (s/def ::character (s/keys :req [::special]))
 
 (s/def ::card (s/or :bonbon ::bonbon ::character ::character))
-(s/def ::deck (s/coll-of ::card :kind set? :count (+ num-pralines 8) :distinct true
-                         :gen #(gen/set (s/gen ::card)    ;use custom generator to generate the complete deck
-                                        {:num-elements (+ num-pralines 8) :max-tries 10000})))
 
-(def complete-deck (gen/generate (s/gen ::deck)))
-(s/def ::hand (s/coll-of complete-deck :kind set? :count 7))
+(def basic-deck
+  "All unique cards"
+  (let [num-pralines (* 5 11)]
+    (gen/generate
+      (gen/vector-distinct (s/gen ::card)
+                           {:num-elements (+ num-pralines 8) :max-tries 10000}))))
+
+(def extra-cards
+  "All cards with double color flavour"
+  (let [num-extras (* 5 6)]
+    (gen/generate
+      (gen/vector-distinct
+        (gen/such-that (fn [card] (= 2 (count (::flavour card)))) (s/gen ::card) 100)
+        {:num-elements num-extras :max-tries 10000}))))
+
+(def complete-deck
+  "The deck to make a hand from"
+  (vec
+    (concat basic-deck extra-cards)))
+
+(defn handout [deck]
+  (let [num-of-cards 7
+        selected (gen/generate (gen/set (gen/choose 0 (dec (count deck))) {:num-elements num-of-cards}))]
+    (mapv deck selected)))
 
 (defn common-color?
   "Truthy iff there is a common color among all flavour combinations"
@@ -191,9 +208,9 @@
 (defn stats
   "Compute bonboniere stats"
   ([hand-count]
-    (stats hand-count false))
+   (stats hand-count false))
   ([hand-count verbose]
-   (let [hands (gen/sample (s/gen ::hand) hand-count)
+   (let [hands (repeatedly hand-count (partial handout complete-deck))
          same-kind-same-flavour-count (->> (map same-kind-same-flavour-bonbonieres hands)
                                            frequencies
                                            (percents "same-kind-same-flavour-" hand-count))
@@ -201,8 +218,8 @@
                                               frequencies
                                               (percents "same-kind-unique-flavours-" hand-count))
          same-kind-arbitrary-flavour-count (->> (map same-kind-arbitrary-flavour-bonbonieres hands)
-                                                 frequencies
-                                                 (percents "same-kind-arbitrary-flavour-" hand-count))
+                                                frequencies
+                                                (percents "same-kind-arbitrary-flavour-" hand-count))
          unique-kind-same-flavour-count (->> (map unique-kind-same-flavour-bonbonieres hands)
                                              frequencies
                                              (percents "unique-kind-same-flavour-" hand-count))
@@ -210,8 +227,8 @@
                                                frequencies
                                                (percents "unique-kind-unique-flavour-" hand-count))
          unique-kind-arbitrary-flavour-count (->> (map unique-kind-arbitrary-flavour-bonbonieres hands)
-                                                   frequencies
-                                                   (percents "unique-kind-arbitrary-flavour-" hand-count))]
+                                                  frequencies
+                                                  (percents "unique-kind-arbitrary-flavour-" hand-count))]
      (when verbose
        (doseq [hand hands]
          (println "========================================================")
