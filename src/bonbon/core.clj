@@ -118,18 +118,6 @@
       0                                                     ;no other bonboniere found
       (apply max rest-counts))))                            ;pick the combo with max number of bonbonieres
 
-(defn arbitrary-flavour-bonbonieres
-  "Return the maximum number of bonbonieres with arbitrary flavours in a set of bonbons"
-  [bonbons]
-  (let [bonbonieres (->> (combo/combinations bonbons 3))    ;try all 3-tuples of bonbons
-        rest-counts (for [bonboniere bonbonieres]           ;for every bonboniere examine rest of bonbons in hand
-                      (inc
-                        (arbitrary-flavour-bonbonieres
-                          (difference (set bonbons) (set bonboniere)))))]
-    (if (empty? bonbonieres)
-      0                                                     ;no other bonboniere found
-      (apply max rest-counts))))                            ;pick the combo with max number of bonbonieres
-
 (defn same-kind-bonbonieres
   "Return the number of bonbonieres of the same kind in a set of cards (best of combinations)"
   [flavour-fn cards]
@@ -154,7 +142,7 @@
 (defn same-kind-arbitrary-flavour-bonbonieres
   "Return the number of bonbonieres of the same kind and arbitrary flavours in a set of cards (best of combinations)"
   [cards]
-  (same-kind-bonbonieres arbitrary-flavour-bonbonieres cards))
+  (same-kind-bonbonieres (fn [bonbons] (int (/ (count bonbons) 3))) cards))
 
 (defn unique-kind-same-flavour-bonbonieres
   "Return the number of bonbonieres of the unique kinds and the same flavour in a set of cards (best of combinations)"
