@@ -46,8 +46,9 @@
 
 (defn handout [deck]
   (let [num-of-cards 7
-        selected (gen/generate (gen/set (gen/choose 0 (dec (count deck))) {:num-elements num-of-cards}))]
-    (mapv deck selected)))
+        selected-indices (gen/generate (gen/set (gen/choose 0 (dec (count deck))) {:num-elements num-of-cards}))
+        selected (mapv deck selected-indices)]
+    (map-indexed (fn [index item] (assoc item ::index index)) selected))) ;differentiate between same kind/flavour cards
 
 (defn common-color?
   "Truthy iff there is a common color among all flavour combinations"
