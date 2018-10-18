@@ -39,10 +39,15 @@
         (gen/such-that (fn [card] (= 2 (count (::flavour card)))) (s/gen ::card) 100)
         {:num-elements num-extras :max-tries 10000}))))
 
+(def extra-quad-cards
+  "All cards with quad color flavour"
+  (for [praline praline-kinds]
+    {::praline praline ::flavour #{:yellow :green :red :brown}}))
+
 (def complete-deck
   "The deck to make a hand from"
   (vec
-    (concat basic-deck extra-cards)))
+    (concat basic-deck extra-cards extra-quad-cards)))
 
 (defn handout [deck]
   (let [num-of-cards 7
