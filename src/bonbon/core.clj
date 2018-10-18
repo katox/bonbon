@@ -202,7 +202,7 @@
   (into (sorted-map)
         (map (fn [[k v]]
                (let [pk (keyword (str kw-prefix k))
-                     pv (float (-> v (/ total) (* 100)))]
+                     pv (float (-> v (* 100) (/ total)))]
                  [pk pv]))
              (dissoc histogram 0))))
 
